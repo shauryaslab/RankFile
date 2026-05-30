@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Chessable — Square Speed Drill</title>
+    <meta name="description" content="Master chess square recognition with timed speed drills. Build fluency in identifying squares instantly.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- ==================== START SCREEN ==================== -->
+        <div id="start-screen" class="screen active">
+            <div class="start-container">
+                <div class="logo-section">
+                    <div class="logo">♔</div>
+                    <h1>Chessable</h1>
+                    <p class="tagline">Speed drill your square recognition</p>
+                </div>
+
+                <div class="options-section">
+                    <div class="option-group">
+                        <label class="option-label">Mode</label>
+                        <div class="mode-cards">
+                            <button class="mode-card active" data-mode="square" id="mode-square-btn">
+                                <span class="mode-icon">♞</span>
+                                <span class="mode-name">Square Drill</span>
+                                <span class="mode-desc">Click the named square</span>
+                            </button>
+                            <button class="mode-card" data-mode="color" id="mode-color-btn">
+                                <span class="mode-icon">◧</span>
+                                <span class="mode-name">Color Drill</span>
+                                <span class="mode-desc">Light or dark?</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="option-group" id="difficulty-group">
+                        <label class="option-label">Difficulty</label>
+                        <div class="option-buttons">
+                            <button class="option-btn active" data-difficulty="easy" id="diff-easy-btn">
+                                <span class="diff-dot easy-dot"></span> Easy
+                            </button>
+                            <button class="option-btn" data-difficulty="normal" id="diff-normal-btn">
+                                <span class="diff-dot normal-dot"></span> Normal
+                            </button>
+                            <button class="option-btn" data-difficulty="hard" id="diff-hard-btn">
+                                <span class="diff-dot hard-dot"></span> Hard
+                            </button>
+                        </div>
+                        <p class="difficulty-hint" id="difficulty-hint">Coordinates shown · White perspective</p>
+                    </div>
+
+                    <div class="option-group">
+                        <label class="option-label">Time</label>
+                        <div class="option-buttons">
+                            <button class="option-btn" data-time="30" id="time-30-btn">30s</button>
+                            <button class="option-btn active" data-time="60" id="time-60-btn">60s</button>
+                            <button class="option-btn" data-time="120" id="time-120-btn">120s</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="start-btn" class="primary-btn">
+                    <span>Start Drill</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </button>
+
+                <div class="personal-best-display" id="pb-display" style="display:none;">
+                    <span class="pb-icon">🏆</span>
+                    <span class="pb-text" id="pb-text"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== GAME SCREEN ==================== -->
+        <div id="game-screen" class="screen">
+            <div class="game-container">
+                <div class="game-header">
+                    <div class="timer-box" id="timer-box">
+                        <svg class="timer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span id="timer-display">60</span><span class="timer-unit">s</span>
+                    </div>
+                    <div class="prompt-box" id="prompt-box">
+                        <span id="prompt-text">e5</span>
+                    </div>
+                    <div class="score-box">
+                        <span id="score-display">0</span>
+                        <span class="score-label">score</span>
+                    </div>
+                </div>
+
+                <!-- Board area for Square Drill -->
+                <div class="board-wrapper" id="board-wrapper">
+                    <div class="rank-labels" id="rank-labels"></div>
+                    <div class="board" id="board"></div>
+                    <div class="board-corner"></div>
+                    <div class="file-labels" id="file-labels"></div>
+                </div>
+
+                <!-- Buttons for Color Drill -->
+                <div class="color-drill-area" id="color-drill-area" style="display:none;">
+                    <div class="color-board-mini" id="color-board-mini"></div>
+                    <div class="color-buttons">
+                        <button class="color-btn light-btn" id="color-light-btn">
+                            <span class="color-swatch light-swatch"></span>
+                            Light
+                        </button>
+                        <button class="color-btn dark-btn" id="color-dark-btn">
+                            <span class="color-swatch dark-swatch"></span>
+                            Dark
+                        </button>
+                    </div>
+                </div>
+
+                <div class="perspective-indicator" id="perspective-indicator" style="display:none;">
+                    <span id="perspective-text">White's perspective</span>
+                </div>
+            </div>
+
+            <!-- Countdown overlay -->
+            <div class="countdown-overlay" id="countdown-overlay" style="display:none;">
+                <span class="countdown-number" id="countdown-number">3</span>
+            </div>
+        </div>
+
+        <!-- ==================== RESULTS SCREEN ==================== -->
+        <div id="results-screen" class="screen">
+            <div class="results-container">
+                <h2 class="results-title">Drill Complete</h2>
+
+                <div class="results-pb-banner" id="results-pb-banner" style="display:none;">
+                    🏆 New Personal Best!
+                </div>
+
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-score">0</span>
+                        <span class="stat-label">Score</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-accuracy">0%</span>
+                        <span class="stat-label">Accuracy</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-avg-time">0s</span>
+                        <span class="stat-label">Avg Time</span>
+                    </div>
+                </div>
+
+                <div class="heatmap-section" id="heatmap-section">
+                    <h3 class="heatmap-title">Square Heatmap</h3>
+                    <p class="heatmap-subtitle">Colored by reaction time — green is fast, red is slow</p>
+                    <div class="heatmap-wrapper">
+                        <div class="heatmap-rank-labels" id="heatmap-rank-labels"></div>
+                        <div class="heatmap-grid" id="heatmap-grid"></div>
+                        <div class="heatmap-corner"></div>
+                        <div class="heatmap-file-labels" id="heatmap-file-labels"></div>
+                    </div>
+                    <div class="heatmap-legend">
+                        <span class="legend-label">Fast</span>
+                        <div class="legend-gradient"></div>
+                        <span class="legend-label">Slow</span>
+                        <span class="legend-swatch legend-neutral"></span>
+                        <span class="legend-label">Not tested</span>
+                    </div>
+                </div>
+
+                <div class="results-actions">
+                    <button class="primary-btn" id="play-again-btn">
+                        <span>Play Again</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    </button>
+                    <button class="secondary-btn" id="change-mode-btn">Change Mode</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
