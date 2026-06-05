@@ -1,0 +1,19 @@
+{
+  "name": "Chessable — Square Speed Drill",
+  "short_name": "Chessable",
+  "description": "Train your chess board vision with timed square-recognition drills, heatmaps and personal bests.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -13,23 +13,88 @@ for (const f of FILES) {
 }
 
 const DIFFICULTY_HINTS = {
-    easy: 'Coordinates shown · White perspective',
-    normal: 'No coordinates · White perspective',
-    hard: 'No coordinates · Perspective flips randomly',
+    square: {
+        easy: 'Coordinates shown · White perspective',
+        normal: 'No coordinates · White perspective',
+        hard: 'No coordinates · Perspective flips randomly',
+    },
+    name: {
+        easy: 'White perspective',
+        normal: 'White perspective',
+        hard: 'Perspective flips randomly',
+    },
+};
+
+const MODE_HINTS = {
+    square: 'Click the highlighted coordinate on the board',
+    name: 'Tap or type the name of the lit-up square',
+    color: 'Is the named square light or dark?',
 };
 
 const FLIP_MIN = 5;
 const FLIP_MAX = 10;
+const SURVIVAL_LIVES = 3;
+
+const SETTINGS_KEY = 'chessable-settings';
+const STATS_KEY = 'chessable-stats';
+const DEFAULT_SETTINGS = {
+    boardTheme: 'classic',
+    sound: true,
+    haptics: true,
+    animations: true,
+    countdown: true,
+};
+
+// ---- Persistent Settings ----
+let settings = { ...DEFAULT_SETTINGS };
+
+function loadSettings() {
+    try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) settings = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    } catch { /* use defaults */ }
+}
+
+function saveSettings() {
+    try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch { /* silent */ }
+}
+
+function applySettings() {
+    document.body.dataset.boardTheme = settings.boardTheme;
+    document.body.classList.toggle('no-anim', !settings.animations);
+}
+
+// ---- Lifetime Stats ----
+const DEFAULT_STATS = { drills: 0, correct: 0, attempts: 0, bestStreak: 0, timeTrained: 0 };
+let lifetime = { ...DEFAULT_STATS };
+
+function loadLifetime() {
+    try {
+        const raw = localStorage.getItem(STATS_KEY);
+        if (raw) lifetime = { ...DEFAULT_STATS, ...JSON.parse(raw) };
+    } catch { /* use defaults */ }
+}
+
+function saveLifetime() {
+    try {
+        localStorage.setItem(STATS_KEY, JSON.stringify(lifetime));
+    } catch { /* silent */ }
+}
 
 // ---- State ----
 const state = {
     screen: 'start',
     mode: 'square',
     difficulty: 'easy',
-    timeOption: 60,
+    session: 60,           // 30 | 60 | 120 | 'survival'
     timeRemaining: 60,
+    lives: SURVIVAL_LIVES,
     score: 0,
     totalClicks: 0,
+    streak: 0,
+    bestStreak: 0,
     currentPrompt: null,
     promptStartTime: 0,
     reactionTimes: [],
@@ -38,116 +103,185 @@ const state = {
     promptsSinceFlip: 0,
     nextFlipAt: 0,
     timerInterval: null,
+    gameStartTime: 0,
     gameActive: false,
-    historicalMisses: {},   // persists across rounds in session
+    historicalMisses: {},  // persists across rounds in session
     lastPrompt: null,
+    pendingFile: null,     // Name mode partial answer
+    pendingRank: null,
+    ended: false,
 };
 
 // ---- DOM References ----
 const $ = (id) => document.getElementById(id);
-
 const els = {};
 
 function cacheElements() {
-    els.startScreen = $('start-screen');
-    els.gameScreen = $('game-screen');
-    els.resultsScreen = $('results-screen');
-    els.startBtn = $('start-btn');
-    els.playAgainBtn = $('play-again-btn');
-    els.changeModeBtn = $('change-mode-btn');
-    els.timerBox = $('timer-box');
-    els.timerDisplay = $('timer-display');
-    els.promptText = $('prompt-text');
-    els.promptBox = $('prompt-box');
-    els.scoreDisplay = $('score-display');
-    els.board = $('board');
-    els.boardWrapper = $('board-wrapper');
-    els.rankLabels = $('rank-labels');
-    els.fileLabels = $('file-labels');
-    els.colorDrillArea = $('color-drill-area');
-    els.colorLightBtn = $('color-light-btn');
-    els.colorDarkBtn = $('color-dark-btn');
-    els.countdownOverlay = $('countdown-overlay');
-    els.countdownNumber = $('countdown-number');
-    els.difficultyGroup = $('difficulty-group');
-    els.difficultyHint = $('difficulty-hint');
-    els.perspectiveIndicator = $('perspective-indicator');
-    els.perspectiveText = $('perspective-text');
-    els.pbDisplay = $('pb-display');
-    els.pbText = $('pb-text');
-    els.statScore = $('stat-score');
-    els.statAccuracy = $('stat-accuracy');
-    els.statAvgTime = $('stat-avg-time');
-    els.resultsPbBanner = $('results-pb-banner');
-    els.heatmapSection = $('heatmap-section');
-    els.heatmapGrid = $('heatmap-grid');
-    els.heatmapRankLabels = $('heatmap-rank-labels');
-    els.heatmapFileLabels = $('heatmap-file-labels');
+    [
+        'start-screen', 'game-screen', 'results-screen', 'start-btn', 'play-again-btn',
+        'change-mode-btn', 'timer-box', 'timer-display', 'prompt-text', 'prompt-box',
+        'score-display', 'board', 'board-wrapper', 'rank-labels', 'file-labels',
+        'color-drill-area', 'color-light-btn', 'color-dark-btn', 'countdown-overlay',
+        'countdown-number', 'difficulty-group', 'difficulty-hint', 'perspective-indicator',
+        'perspective-text', 'pb-display', 'pb-text', 'stat-score', 'stat-accuracy',
+        'stat-avg-time', 'stat-streak', 'results-pb-banner', 'heatmap-section', 'heatmap-grid',
+        'heatmap-rank-labels', 'heatmap-file-labels', 'lives-box', 'streak-display',
+        'streak-value', 'quit-btn', 'prompt-hint', 'name-answer-area', 'file-pad', 'rank-pad',
+        'settings-btn', 'stats-btn', 'settings-modal', 'stats-modal', 'close-settings-btn',
+        'close-stats-btn', 'theme-grid', 'toggle-sound', 'toggle-haptics', 'toggle-animations',
+        'toggle-countdown', 'reset-progress-btn', 'lt-drills', 'lt-correct', 'lt-accuracy',
+        'lt-best-streak', 'lt-time', 'lt-empty',
+    ].forEach((id) => {
+        // camelCase key from kebab id
+        const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        els[key] = $(id);
+    });
 }
 
 // ---- Initialization ----
 function init() {
     cacheElements();
+    loadSettings();
+    loadLifetime();
+    applySettings();
+    buildNamePads();
     setupStartScreenListeners();
     setupGameListeners();
     setupResultsListeners();
+    setupSettingsListeners();
+    setupKeyboard();
+    syncSettingsUI();
     updatePersonalBestDisplay();
+    registerServiceWorker();
+    // Unlock audio on the first user gesture so start-screen taps are audible.
+    document.addEventListener('pointerdown', ensureAudio, { once: true });
 }
 
 function setupStartScreenListeners() {
-    // Mode cards
     document.querySelectorAll('.mode-card').forEach((card) => {
         card.addEventListener('click', () => {
             document.querySelectorAll('.mode-card').forEach((c) => c.classList.remove('active'));
             card.classList.add('active');
             state.mode = card.dataset.mode;
-            // Hide difficulty for color mode
-            els.difficultyGroup.style.display = state.mode === 'color' ? 'none' : 'flex';
+            // Difficulty only matters for board-based modes
+            const showDiff = state.mode === 'square' || state.mode === 'name';
+            els.difficultyGroup.style.display = showDiff ? 'flex' : 'none';
+            if (showDiff) els.difficultyHint.textContent = DIFFICULTY_HINTS[state.mode][state.difficulty];
             updatePersonalBestDisplay();
+            sfx('click');
         });
     });
 
-    // Difficulty buttons
     document.querySelectorAll('[data-difficulty]').forEach((btn) => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('[data-difficulty]').forEach((b) => b.classList.remove('active'));
             btn.classList.add('active');
             state.difficulty = btn.dataset.difficulty;
-            els.difficultyHint.textContent = DIFFICULTY_HINTS[state.difficulty];
+            const hintSet = DIFFICULTY_HINTS[state.mode] || DIFFICULTY_HINTS.square;
+            els.difficultyHint.textContent = hintSet[state.difficulty];
             updatePersonalBestDisplay();
+            sfx('click');
         });
     });
 
-    // Time buttons
-    document.querySelectorAll('[data-time]').forEach((btn) => {
+    document.querySelectorAll('[data-session]').forEach((btn) => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('[data-time]').forEach((b) => b.classList.remove('active'));
+            document.querySelectorAll('[data-session]').forEach((b) => b.classList.remove('active'));
             btn.classList.add('active');
-            state.timeOption = parseInt(btn.dataset.time);
+            const val = btn.dataset.session;
+            state.session = val === 'survival' ? 'survival' : parseInt(val);
             updatePersonalBestDisplay();
+            sfx('click');
         });
     });
 
-    // Start button
     els.startBtn.addEventListener('click', startGame);
 }
 
 function setupGameListeners() {
-    // Board click (event delegation)
     els.board.addEventListener('click', (e) => {
+        if (state.mode !== 'square') return;       // Name mode board is display-only
         const square = e.target.closest('.square');
         if (!square || !state.gameActive) return;
-        handleSquareClick(square.dataset.square, square);
+        answerSquare(square.dataset.square, square);
     });
 
-    // Color drill buttons
     els.colorLightBtn.addEventListener('click', () => handleColorClick('light'));
     els.colorDarkBtn.addEventListener('click', () => handleColorClick('dark'));
+    els.quitBtn.addEventListener('click', quitGame);
 }
 
 function setupResultsListeners() {
     els.playAgainBtn.addEventListener('click', startGame);
-    els.changeModeBtn.addEventListener('click', () => showScreen('start'));
+    els.changeModeBtn.addEventListener('click', () => { sfx('click'); showScreen('start'); });
+}
+
+// ---- Name-mode coordinate pads ----
+function buildNamePads() {
+    els.filePad.innerHTML = '';
+    els.rankPad.innerHTML = '';
+    FILES.forEach((f) => {
+        const b = document.createElement('button');
+        b.className = 'pad-btn';
+        b.textContent = f;
+        b.dataset.file = f;
+        b.addEventListener('click', () => pickFile(f));
+        els.filePad.appendChild(b);
+    });
+    RANKS.forEach((r) => {
+        const b = document.createElement('button');
+        b.className = 'pad-btn';
+        b.textContent = r;
+        b.dataset.rank = r;
+        b.addEventListener('click', () => pickRank(r));
+        els.rankPad.appendChild(b);
+    });
+}
+
+function pickFile(f) {
+    if (!state.gameActive || state.mode !== 'name') return;
+    state.pendingFile = f;
+    highlightPad();
+    maybeSubmitName();
+}
+
+function pickRank(r) {
+    if (!state.gameActive || state.mode !== 'name') return;
+    state.pendingRank = r;
+    highlightPad();
+    maybeSubmitName();
+}
+
+function highlightPad() {
+    els.filePad.querySelectorAll('.pad-btn').forEach((b) =>
+        b.classList.toggle('selected', b.dataset.file === state.pendingFile));
+    els.rankPad.querySelectorAll('.pad-btn').forEach((b) =>
+        b.classList.toggle('selected', String(state.pendingRank) === String(b.dataset.rank)));
+}
+
+function clearPad() {
+    state.pendingFile = null;
+    state.pendingRank = null;
+    highlightPad();
+}
+
+function maybeSubmitName() {
+    if (state.pendingFile && state.pendingRank) {
+        const answer = `${state.pendingFile}${state.pendingRank}`;
+        const correct = answer === state.currentPrompt;
+        flashPad(correct);
+        answerSquare(answer, null);
+        clearPad();
+    }
+}
+
+function flashPad(correct) {
+    const cls = correct ? 'flash-correct' : 'flash-wrong';
+    [...els.filePad.querySelectorAll('.selected'), ...els.rankPad.querySelectorAll('.selected')]
+        .forEach((b) => {
+            b.classList.add(cls);
+            setTimeout(() => b.classList.remove(cls), 300);
+        });
 }
 
 // ---- Screen Management ----
@@ -156,12 +290,14 @@ function showScreen(name) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
     const screen = $(`${name}-screen`);
     if (screen) screen.classList.add('active');
+    // Hide top-bar utility buttons during active play
+    document.body.classList.toggle('in-game', name === 'game');
 }
 
 // ---- Personal Best ----
 function getPBKey() {
-    const diff = state.mode === 'color' ? 'all' : state.difficulty;
-    return `chessable-pb-${state.mode}-${diff}-${state.timeOption}`;
+    const diff = (state.mode === 'square' || state.mode === 'name') ? state.difficulty : 'all';
+    return `chessable-pb-${state.mode}-${diff}-${state.session}`;
 }
 
 function getPersonalBest() {
@@ -182,8 +318,10 @@ function updatePersonalBestDisplay() {
     const pb = getPersonalBest();
     if (pb > 0) {
         els.pbDisplay.style.display = 'flex';
-        const diff = state.mode === 'color' ? '' : ` · ${capitalize(state.difficulty)}`;
-        els.pbText.textContent = `Best: ${pb}${diff} · ${state.timeOption}s`;
+        const showDiff = state.mode === 'square' || state.mode === 'name';
+        const diff = showDiff ? ` · ${capitalize(state.difficulty)}` : '';
+        const session = state.session === 'survival' ? 'Survival' : `${state.session}s`;
+        els.pbText.textContent = `Best: ${pb}${diff} · ${session}`;
     } else {
         els.pbDisplay.style.display = 'none';
     }
@@ -191,10 +329,14 @@ function updatePersonalBestDisplay() {
 
 // ---- Game Flow ----
 function startGame() {
-    // Reset state
-    state.timeRemaining = state.timeOption;
+    ensureAudio();
+
+    state.timeRemaining = state.session === 'survival' ? Infinity : state.session;
+    state.lives = SURVIVAL_LIVES;
     state.score = 0;
     state.totalClicks = 0;
+    state.streak = 0;
+    state.bestStreak = 0;
     state.currentPrompt = null;
     state.promptStartTime = 0;
     state.reactionTimes = [];
@@ -204,30 +346,43 @@ function startGame() {
     state.nextFlipAt = randomInt(FLIP_MIN, FLIP_MAX);
     state.gameActive = false;
     state.lastPrompt = null;
+    state.ended = false;
+    clearPad();
 
-    // Update UI
+    const isSurvival = state.session === 'survival';
+    const usesBoard = state.mode === 'square' || state.mode === 'name';
+
     els.scoreDisplay.textContent = '0';
-    els.timerDisplay.textContent = state.timeOption;
     els.timerBox.classList.remove('danger');
+    els.streakValue.textContent = '0';
+    els.streakDisplay.style.opacity = '0';
+    els.promptHint.textContent = MODE_HINTS[state.mode];
 
-    // Show correct drill area
-    if (state.mode === 'square') {
-        els.boardWrapper.style.display = 'grid';
-        els.colorDrillArea.style.display = 'none';
-        // Apply difficulty
-        if (state.difficulty === 'easy') {
-            els.boardWrapper.classList.remove('hide-coords');
-        } else {
-            els.boardWrapper.classList.add('hide-coords');
-        }
-        renderBoard();
+    // Timer vs lives display
+    if (isSurvival) {
+        els.timerBox.style.display = 'none';
+        els.livesBox.style.display = 'flex';
+        renderLives();
     } else {
-        els.boardWrapper.style.display = 'none';
-        els.colorDrillArea.style.display = 'flex';
+        els.timerBox.style.display = 'flex';
+        els.livesBox.style.display = 'none';
+        els.timerDisplay.textContent = state.session;
     }
 
-    // Perspective indicator for hard mode
-    if (state.difficulty === 'hard' && state.mode === 'square') {
+    // Choose the answer surface
+    els.boardWrapper.style.display = usesBoard ? 'grid' : 'none';
+    els.nameAnswerArea.style.display = state.mode === 'name' ? 'flex' : 'none';
+    els.colorDrillArea.style.display = state.mode === 'color' ? 'flex' : 'none';
+
+    if (usesBoard) {
+        // Name mode always hides coords; Find Square hides on normal/hard
+        const hideCoords = state.mode === 'name' || state.difficulty !== 'easy';
+        els.boardWrapper.classList.toggle('hide-coords', hideCoords);
+        renderBoard();
+    }
+
+    // Perspective indicator only when the board can flip
+    if (state.difficulty === 'hard' && usesBoard) {
         els.perspectiveIndicator.style.display = 'block';
         updatePerspectiveText();
     } else {
@@ -235,29 +390,42 @@ function startGame() {
     }
 
     showScreen('game');
-    runCountdown();
+    if (settings.countdown) {
+        runCountdown();
+    } else {
+        beginRound();
+    }
+}
+
+function quitGame() {
+    state.gameActive = false;
+    state.ended = true;
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+    sfx('click');
+    showScreen('start');
 }
 
 function runCountdown() {
     els.countdownOverlay.style.display = 'flex';
     let count = 3;
-    els.countdownNumber.textContent = count;
-    els.countdownNumber.style.animation = 'none';
-    void els.countdownNumber.offsetWidth; // trigger reflow
-    els.countdownNumber.style.animation = '';
+    const show = (txt) => {
+        els.countdownNumber.textContent = txt;
+        els.countdownNumber.style.animation = 'none';
+        void els.countdownNumber.offsetWidth;
+        els.countdownNumber.style.animation = '';
+    };
+    show(count);
+    sfx('tick');
 
     const interval = setInterval(() => {
         count--;
         if (count > 0) {
-            els.countdownNumber.textContent = count;
-            els.countdownNumber.style.animation = 'none';
-            void els.countdownNumber.offsetWidth;
-            els.countdownNumber.style.animation = '';
+            show(count);
+            sfx('tick');
         } else if (count === 0) {
-            els.countdownNumber.textContent = 'GO!';
-            els.countdownNumber.style.animation = 'none';
-            void els.countdownNumber.offsetWidth;
-            els.countdownNumber.style.animation = '';
+            show('GO!');
+            sfx('go');
         } else {
             clearInterval(interval);
             els.countdownOverlay.style.display = 'none';
@@ -268,29 +436,32 @@ function runCountdown() {
 
 function beginRound() {
     state.gameActive = true;
+    state.gameStartTime = Date.now();
     generatePrompt();
-    startTimer();
+    if (state.session !== 'survival') startTimer();
 }
 
 // ---- Timer ----
 function startTimer() {
     const startTime = Date.now();
-    const totalMs = state.timeOption * 1000;
+    const totalMs = state.session * 1000;
+    let lastWhole = state.session;
 
     state.timerInterval = setInterval(() => {
         const elapsed = Date.now() - startTime;
         const remaining = Math.max(0, totalMs - elapsed);
         state.timeRemaining = remaining / 1000;
 
-        els.timerDisplay.textContent = Math.ceil(state.timeRemaining);
+        const whole = Math.ceil(state.timeRemaining);
+        els.timerDisplay.textContent = whole;
 
         if (state.timeRemaining <= 10) {
             els.timerBox.classList.add('danger');
+            if (whole !== lastWhole && whole <= 5 && whole > 0) sfx('tick');
         }
+        lastWhole = whole;
 
-        if (remaining <= 0) {
-            endGame();
-        }
+        if (remaining <= 0) endGame();
     }, 100);
 }
 
@@ -303,21 +474,17 @@ function renderBoard() {
     const ranks = state.isFlipped ? [...RANKS] : [...RANKS].reverse();
     const files = state.isFlipped ? [...FILES].reverse() : [...FILES];
 
-    // Rank labels
     for (const r of ranks) {
         const label = document.createElement('span');
         label.textContent = r;
         els.rankLabels.appendChild(label);
     }
-
-    // File labels
     for (const f of files) {
         const label = document.createElement('span');
         label.textContent = f;
         els.fileLabels.appendChild(label);
     }
 
-    // Squares
     for (const rank of ranks) {
         for (const file of files) {
             const sq = document.createElement('div');
@@ -328,27 +495,27 @@ function renderBoard() {
             els.board.appendChild(sq);
         }
     }
+
+    // In Name mode, re-light the current target after a re-render (e.g. flip)
+    if (state.mode === 'name' && state.currentPrompt) highlightTarget();
+}
+
+function highlightTarget() {
+    els.board.querySelectorAll('.square.target').forEach((s) => s.classList.remove('target'));
+    const el = els.board.querySelector(`[data-square="${state.currentPrompt}"]`);
+    if (el) el.classList.add('target');
 }
 
 // ---- Prompt Generation ----
 function generatePrompt() {
-    let square;
-    const hasHistory = Object.keys(state.historicalMisses).length > 0;
+    const pick = () => Object.keys(state.historicalMisses).length > 0
+        ? getWeightedSquare()
+        : ALL_SQUARES[randomInt(0, ALL_SQUARES.length - 1)];
 
-    if (hasHistory) {
-        square = getWeightedSquare();
-    } else {
-        square = ALL_SQUARES[randomInt(0, ALL_SQUARES.length - 1)];
-    }
-
-    // Avoid repeating the same square
+    let square = pick();
     let attempts = 0;
     while (square === state.lastPrompt && attempts < 10) {
-        if (hasHistory) {
-            square = getWeightedSquare();
-        } else {
-            square = ALL_SQUARES[randomInt(0, ALL_SQUARES.length - 1)];
-        }
+        square = pick();
         attempts++;
     }
 
@@ -356,25 +523,31 @@ function generatePrompt() {
     state.lastPrompt = square;
     state.promptStartTime = Date.now();
 
-    // Initialize stats for this square
     if (!state.squareStats[square]) {
         state.squareStats[square] = { prompted: 0, totalTime: 0, misses: 0 };
     }
     state.squareStats[square].prompted++;
 
-    // Update prompt display
-    els.promptText.textContent = square;
-    els.promptText.classList.remove('pop');
-    void els.promptText.offsetWidth;
-    els.promptText.classList.add('pop');
-
-    // Check if we should flip (hard mode)
-    if (state.difficulty === 'hard' && state.mode === 'square') {
+    // Flip check (board modes, hard difficulty) — do before lighting target
+    if (state.difficulty === 'hard' && (state.mode === 'square' || state.mode === 'name')) {
         state.promptsSinceFlip++;
         if (state.promptsSinceFlip >= state.nextFlipAt) {
             flipBoard();
         }
     }
+
+    if (state.mode === 'name') {
+        els.promptText.textContent = '?';
+        els.promptText.classList.add('mystery');
+        highlightTarget();
+    } else {
+        els.promptText.classList.remove('mystery');
+        els.promptText.textContent = square;
+    }
+
+    els.promptText.classList.remove('pop');
+    void els.promptText.offsetWidth;
+    els.promptText.classList.add('pop');
 }
 
 function getWeightedSquare() {
@@ -401,12 +574,11 @@ function flipBoard() {
     state.nextFlipAt = randomInt(FLIP_MIN, FLIP_MAX);
 
     els.boardWrapper.classList.add('flipping');
-
     setTimeout(() => {
         renderBoard();
         updatePerspectiveText();
         els.boardWrapper.classList.remove('flipping');
-    }, 300);
+    }, settings.animations ? 300 : 0);
 }
 
 function updatePerspectiveText() {
@@ -415,46 +587,36 @@ function updatePerspectiveText() {
         : "White's perspective";
 }
 
-// ---- Click Handlers ----
-function handleSquareClick(clickedSquare, squareEl) {
+// ---- Answer Handling (square + name modes) ----
+function answerSquare(answer, clickedEl) {
     if (!state.gameActive) return;
     state.totalClicks++;
 
-    if (clickedSquare === state.currentPrompt) {
-        // Correct!
-        const reactionTime = Date.now() - state.promptStartTime;
-        state.score++;
-        state.reactionTimes.push(reactionTime);
-
-        // Update square stats
-        state.squareStats[state.currentPrompt].totalTime += reactionTime;
-
-        // Visual feedback
-        squareEl.classList.add('flash-correct');
-        setTimeout(() => squareEl.classList.remove('flash-correct'), 350);
-
-        // Score pop
-        els.scoreDisplay.textContent = state.score;
-        els.scoreDisplay.classList.remove('pop');
-        void els.scoreDisplay.offsetWidth;
-        els.scoreDisplay.classList.add('pop');
-
-        // Next prompt
+    if (answer === state.currentPrompt) {
+        registerCorrect();
+        // Green flash on the correct board square (clicked or target)
+        const el = clickedEl || els.board.querySelector(`[data-square="${state.currentPrompt}"]`);
+        if (el && state.mode === 'square') flashSquare(el, true);
         generatePrompt();
     } else {
-        // Wrong click
-        squareEl.classList.add('flash-wrong');
-        setTimeout(() => squareEl.classList.remove('flash-wrong'), 250);
-
-        // Track miss
-        if (state.squareStats[state.currentPrompt]) {
-            state.squareStats[state.currentPrompt].misses++;
+        registerWrong();
+        if (clickedEl && state.mode === 'square') {
+            flashSquare(clickedEl, false);
+        } else {
+            shakePrompt();
         }
-        if (!state.historicalMisses[state.currentPrompt]) {
-            state.historicalMisses[state.currentPrompt] = 0;
-        }
-        state.historicalMisses[state.currentPrompt]++;
     }
+}
+
+function flashSquare(el, correct) {
+    const cls = correct ? 'flash-correct' : 'flash-wrong';
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), correct ? 350 : 250);
+}
+
+function shakePrompt() {
+    els.promptBox.classList.add('shake');
+    setTimeout(() => els.promptBox.classList.remove('shake'), 300);
 }
 
 function handleColorClick(color) {
@@ -465,43 +627,72 @@ function handleColorClick(color) {
     const btn = color === 'light' ? els.colorLightBtn : els.colorDarkBtn;
 
     if (color === correctColor) {
-        // Correct!
-        const reactionTime = Date.now() - state.promptStartTime;
-        state.score++;
-        state.reactionTimes.push(reactionTime);
-
-        if (!state.squareStats[state.currentPrompt]) {
-            state.squareStats[state.currentPrompt] = { prompted: 0, totalTime: 0, misses: 0 };
-        }
-        state.squareStats[state.currentPrompt].totalTime += reactionTime;
-
-        // Visual feedback
+        registerCorrect();
         btn.classList.add('flash-correct');
         setTimeout(() => btn.classList.remove('flash-correct'), 300);
-
-        // Score pop
-        els.scoreDisplay.textContent = state.score;
-        els.scoreDisplay.classList.remove('pop');
-        void els.scoreDisplay.offsetWidth;
-        els.scoreDisplay.classList.add('pop');
-
-        // Next prompt
         generatePrompt();
     } else {
-        // Wrong
+        registerWrong();
         btn.classList.add('flash-wrong');
         setTimeout(() => btn.classList.remove('flash-wrong'), 300);
-
-        if (!state.squareStats[state.currentPrompt]) {
-            state.squareStats[state.currentPrompt] = { prompted: 0, totalTime: 0, misses: 0 };
-        }
-        state.squareStats[state.currentPrompt].misses++;
-
-        if (!state.historicalMisses[state.currentPrompt]) {
-            state.historicalMisses[state.currentPrompt] = 0;
-        }
-        state.historicalMisses[state.currentPrompt]++;
     }
+}
+
+// ---- Correct / Wrong bookkeeping ----
+function registerCorrect() {
+    const reactionTime = Date.now() - state.promptStartTime;
+    state.score++;
+    state.streak++;
+    state.bestStreak = Math.max(state.bestStreak, state.streak);
+    state.reactionTimes.push(reactionTime);
+    state.squareStats[state.currentPrompt].totalTime += reactionTime;
+
+    els.scoreDisplay.textContent = state.score;
+    bump(els.scoreDisplay);
+    updateStreakDisplay();
+    sfx('correct');
+}
+
+function registerWrong() {
+    const sq = state.currentPrompt;
+    if (state.squareStats[sq]) state.squareStats[sq].misses++;
+    state.historicalMisses[sq] = (state.historicalMisses[sq] || 0) + 1;
+    state.streak = 0;
+    updateStreakDisplay();
+    sfx('wrong');
+    haptic(40);
+
+    if (state.session === 'survival') {
+        state.lives--;
+        renderLives();
+        if (state.lives <= 0) {
+            state.gameActive = false;   // block further input during the death pause
+            setTimeout(endGame, 250);
+        }
+    }
+}
+
+function updateStreakDisplay() {
+    els.streakValue.textContent = state.streak;
+    els.streakDisplay.style.opacity = state.streak >= 2 ? '1' : '0';
+    els.streakDisplay.classList.toggle('hot', state.streak >= 5);
+    if (state.streak >= 2) bump(els.streakDisplay);
+}
+
+function renderLives() {
+    els.livesBox.innerHTML = '';
+    for (let i = 0; i < SURVIVAL_LIVES; i++) {
+        const h = document.createElement('span');
+        h.className = 'life' + (i < state.lives ? '' : ' lost');
+        h.textContent = '♥';
+        els.livesBox.appendChild(h);
+    }
+}
+
+function bump(el) {
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
 }
 
 // ---- Square Color Helper ----
@@ -514,39 +705,40 @@ function isLightSquare(squareName) {
 
 // ---- End Game ----
 function endGame() {
+    if (state.ended) return;
+    state.ended = true;
     state.gameActive = false;
     clearInterval(state.timerInterval);
     state.timerInterval = null;
+    sfx('gameover');
 
-    // Calculate stats
     const accuracy = state.totalClicks > 0
         ? Math.round((state.score / state.totalClicks) * 100)
         : 0;
-
     const avgTime = state.reactionTimes.length > 0
         ? state.reactionTimes.reduce((a, b) => a + b, 0) / state.reactionTimes.length
         : 0;
 
-    // Check personal best
+    // Lifetime stats
+    lifetime.drills++;
+    lifetime.correct += state.score;
+    lifetime.attempts += state.totalClicks;
+    lifetime.bestStreak = Math.max(lifetime.bestStreak, state.bestStreak);
+    lifetime.timeTrained += Math.round((Date.now() - state.gameStartTime) / 1000);
+    saveLifetime();
+
     const pb = getPersonalBest();
     const isNewPB = state.score > pb;
-    if (isNewPB) {
-        savePersonalBest(state.score);
-    }
+    if (isNewPB) savePersonalBest(state.score);
 
-    // Update results UI
     els.statScore.textContent = state.score;
     els.statAccuracy.textContent = `${accuracy}%`;
     els.statAvgTime.textContent = `${(avgTime / 1000).toFixed(2)}s`;
+    els.statStreak.textContent = state.bestStreak;
+    els.resultsPbBanner.style.display = (isNewPB && state.score > 0) ? 'block' : 'none';
 
-    if (isNewPB && state.score > 0) {
-        els.resultsPbBanner.style.display = 'block';
-    } else {
-        els.resultsPbBanner.style.display = 'none';
-    }
-
-    // Render heatmap
-    if (state.mode === 'square') {
+    // Heatmap available for board modes (keyed by square + reaction time)
+    if (state.mode === 'square' || state.mode === 'name') {
         els.heatmapSection.style.display = 'flex';
         renderHeatmap();
     } else {
@@ -565,21 +757,17 @@ function renderHeatmap() {
     const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
     const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
-    // Rank labels
     for (const r of ranks) {
         const label = document.createElement('span');
         label.textContent = r;
         els.heatmapRankLabels.appendChild(label);
     }
-
-    // File labels
     for (const f of files) {
         const label = document.createElement('span');
         label.textContent = f;
         els.heatmapFileLabels.appendChild(label);
     }
 
-    // Find max reaction time for scaling
     let maxTime = 0;
     for (const sq of ALL_SQUARES) {
         const stats = state.squareStats[sq];
@@ -589,7 +777,6 @@ function renderHeatmap() {
         }
     }
 
-    // Render cells
     for (const rank of ranks) {
         for (const file of files) {
             const sq = `${file}${rank}`;
@@ -597,48 +784,248 @@ function renderHeatmap() {
             cell.className = 'heatmap-cell';
 
             const stats = state.squareStats[sq];
-            if (stats && stats.prompted > 0) {
+            if (stats && stats.prompted > 0 && stats.totalTime > 0) {
                 const avgTime = stats.totalTime / stats.prompted;
-                // Color from green (fast) to red (slow)
                 const ratio = maxTime > 0 ? Math.min(avgTime / Math.max(maxTime, 3000), 1) : 0;
-                const color = heatmapColor(ratio);
-                cell.style.background = color;
+                cell.style.background = heatmapColor(ratio);
                 cell.title = `${sq}: ${(avgTime / 1000).toFixed(2)}s avg, ${stats.misses} miss${stats.misses !== 1 ? 'es' : ''}`;
             } else {
                 cell.classList.add('neutral');
                 cell.title = `${sq}: not tested`;
             }
-
             els.heatmapGrid.appendChild(cell);
         }
     }
 }
 
 function heatmapColor(ratio) {
-    // 0 = green, 0.5 = yellow/orange, 1 = red
     if (ratio <= 0.5) {
-        // Green to yellow
         const r = Math.round(46 + (255 - 46) * (ratio * 2));
         const g = Math.round(213 + (165 - 213) * (ratio * 2));
         const b = Math.round(115 + (2 - 115) * (ratio * 2));
         return `rgb(${r}, ${g}, ${b})`;
-    } else {
-        // Yellow/orange to red
-        const t = (ratio - 0.5) * 2;
-        const r = Math.round(255);
-        const g = Math.round(165 - 165 * t);
-        const b = Math.round(2 + (87 - 2) * t);
-        return `rgb(${r}, ${g}, ${b})`;
+    }
+    const t = (ratio - 0.5) * 2;
+    const g = Math.round(165 - 165 * t);
+    const b = Math.round(2 + (87 - 2) * t);
+    return `rgb(255, ${g}, ${b})`;
+}
+
+/* ========================================
+   SETTINGS & STATS MODALS
+   ======================================== */
+function setupSettingsListeners() {
+    els.settingsBtn.addEventListener('click', () => openModal(els.settingsModal));
+    els.closeSettingsBtn.addEventListener('click', () => closeModal(els.settingsModal));
+    els.statsBtn.addEventListener('click', () => { syncStatsUI(); openModal(els.statsModal); });
+    els.closeStatsBtn.addEventListener('click', () => closeModal(els.statsModal));
+
+    [els.settingsModal, els.statsModal].forEach((m) => {
+        m.addEventListener('click', (e) => { if (e.target === m) closeModal(m); });
+    });
+
+    els.themeGrid.querySelectorAll('.theme-swatch').forEach((sw) => {
+        sw.addEventListener('click', () => {
+            settings.boardTheme = sw.dataset.theme;
+            saveSettings();
+            applySettings();
+            syncSettingsUI();
+            sfx('click');
+        });
+    });
+
+    bindToggle(els.toggleSound, 'sound', () => { if (settings.sound) { ensureAudio(); sfx('correct'); } });
+    bindToggle(els.toggleHaptics, 'haptics', () => { if (settings.haptics) haptic(30); });
+    bindToggle(els.toggleAnimations, 'animations');
+    bindToggle(els.toggleCountdown, 'countdown');
+
+    els.resetProgressBtn.addEventListener('click', resetProgress);
+}
+
+function bindToggle(btn, key, after) {
+    btn.addEventListener('click', () => {
+        settings[key] = !settings[key];
+        saveSettings();
+        applySettings();
+        syncSettingsUI();
+        if (after) after();
+    });
+}
+
+function syncSettingsUI() {
+    els.themeGrid.querySelectorAll('.theme-swatch').forEach((sw) =>
+        sw.classList.toggle('active', sw.dataset.theme === settings.boardTheme));
+    setSwitch(els.toggleSound, settings.sound);
+    setSwitch(els.toggleHaptics, settings.haptics);
+    setSwitch(els.toggleAnimations, settings.animations);
+    setSwitch(els.toggleCountdown, settings.countdown);
+}
+
+function setSwitch(btn, on) {
+    btn.classList.toggle('on', on);
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+function syncStatsUI() {
+    const acc = lifetime.attempts > 0 ? Math.round((lifetime.correct / lifetime.attempts) * 100) : 0;
+    els.ltDrills.textContent = lifetime.drills;
+    els.ltCorrect.textContent = lifetime.correct;
+    els.ltAccuracy.textContent = `${acc}%`;
+    els.ltBestStreak.textContent = lifetime.bestStreak;
+    els.ltTime.textContent = formatDuration(lifetime.timeTrained);
+    els.ltEmpty.style.display = lifetime.drills === 0 ? 'block' : 'none';
+}
+
+function resetProgress() {
+    if (!confirm('Reset all personal bests and lifetime stats? This cannot be undone.')) return;
+    try {
+        Object.keys(localStorage)
+            .filter((k) => k.startsWith('chessable-pb-') || k === STATS_KEY)
+            .forEach((k) => localStorage.removeItem(k));
+    } catch { /* silent */ }
+    lifetime = { ...DEFAULT_STATS };
+    syncStatsUI();
+    updatePersonalBestDisplay();
+    sfx('wrong');
+}
+
+function openModal(m) {
+    m.style.display = 'flex';
+    void m.offsetWidth;
+    m.classList.add('open');
+    sfx('click');
+}
+
+function closeModal(m) {
+    m.classList.remove('open');
+    setTimeout(() => { m.style.display = 'none'; }, settings.animations ? 200 : 0);
+}
+
+/* ========================================
+   KEYBOARD CONTROLS
+   ======================================== */
+function setupKeyboard() {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (els.settingsModal.classList.contains('open')) return closeModal(els.settingsModal);
+            if (els.statsModal.classList.contains('open')) return closeModal(els.statsModal);
+            if (state.screen === 'game') return quitGame();
+            return;
+        }
+
+        // Start a drill with Enter from start / results (unless a modal is open)
+        const modalOpen = els.settingsModal.classList.contains('open') || els.statsModal.classList.contains('open');
+        if (e.key === 'Enter' && !modalOpen && (state.screen === 'start' || state.screen === 'results')) {
+            startGame();
+            return;
+        }
+
+        if (state.screen !== 'game' || !state.gameActive) return;
+        const k = e.key.toLowerCase();
+
+        if (state.mode === 'color') {
+            if (k === 'l' || e.key === 'ArrowLeft') handleColorClick('light');
+            else if (k === 'd' || e.key === 'ArrowRight') handleColorClick('dark');
+            return;
+        }
+
+        // Find Square / Name Square: type a coordinate
+        if (k >= 'a' && k <= 'h') {
+            state.pendingFile = k;
+            if (state.mode === 'name') highlightPad();
+            tryTypedAnswer();
+        } else if (k >= '1' && k <= '8') {
+            state.pendingRank = parseInt(k);
+            if (state.mode === 'name') highlightPad();
+            tryTypedAnswer();
+        } else if (e.key === 'Backspace') {
+            clearPad();
+        }
+    });
+}
+
+function tryTypedAnswer() {
+    if (state.pendingFile && state.pendingRank) {
+        const answer = `${state.pendingFile}${state.pendingRank}`;
+        if (state.mode === 'name') flashPad(answer === state.currentPrompt);
+        answerSquare(answer, null);
+        clearPad();
     }
 }
 
-// ---- Utilities ----
+/* ========================================
+   AUDIO (Web Audio API — no asset files)
+   ======================================== */
+let audioCtx = null;
+
+function ensureAudio() {
+    if (!settings.sound) return;
+    if (!audioCtx) {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        } catch { audioCtx = null; }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function tone(freq, dur, type = 'sine', gain = 0.08, slideTo = null) {
+    if (!settings.sound || !audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+}
+
+function sfx(name) {
+    if (!settings.sound || !audioCtx) return;
+    switch (name) {
+        case 'correct':  tone(660, 0.12, 'sine', 0.07, 990); break;
+        case 'wrong':    tone(180, 0.18, 'sawtooth', 0.06, 110); break;
+        case 'click':    tone(420, 0.05, 'triangle', 0.04); break;
+        case 'tick':     tone(880, 0.05, 'square', 0.03); break;
+        case 'go':       tone(520, 0.18, 'sine', 0.08, 780); break;
+        case 'gameover': tone(440, 0.4, 'sine', 0.08, 160); break;
+    }
+}
+
+function haptic(ms) {
+    if (settings.haptics && navigator.vibrate) {
+        try { navigator.vibrate(ms); } catch { /* unsupported */ }
+    }
+}
+
+/* ========================================
+   UTILITIES
+   ======================================== */
 function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function formatDuration(seconds) {
+    if (seconds < 60) return `${seconds}s`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.round((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+}
+
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch(() => { /* offline unavailable */ });
+        });
+    }
 }
 
 // ---- Boot ----

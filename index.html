@@ -2,16 +2,41 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Chessable — Square Speed Drill</title>
-    <meta name="description" content="Master chess square recognition with timed speed drills. Build fluency in identifying squares instantly.">
+    <meta name="description" content="Master chess square recognition with timed speed drills. Train board vision, coordinates and square colors — fast, free, and offline-ready.">
+    <meta name="theme-color" content="#0d1117">
+    <meta name="color-scheme" content="dark">
+
+    <!-- Open Graph / social -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Chessable — Square Speed Drill">
+    <meta property="og:description" content="Train your chess board vision with timed square-recognition drills, heatmaps and personal bests.">
+    <meta property="og:image" content="./icon.svg">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <!-- PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="./icon.svg">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body data-board-theme="classic">
     <div id="app">
+
+        <!-- Top-right utility buttons -->
+        <div class="top-bar" id="top-bar">
+            <button class="icon-btn" id="stats-btn" aria-label="View stats" title="Lifetime stats">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </button>
+            <button class="icon-btn" id="settings-btn" aria-label="Open settings" title="Settings">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+        </div>
 
         <!-- ==================== START SCREEN ==================== -->
         <div id="start-screen" class="screen active">
@@ -28,8 +53,13 @@
                         <div class="mode-cards">
                             <button class="mode-card active" data-mode="square" id="mode-square-btn">
                                 <span class="mode-icon">♞</span>
-                                <span class="mode-name">Square Drill</span>
+                                <span class="mode-name">Find Square</span>
                                 <span class="mode-desc">Click the named square</span>
+                            </button>
+                            <button class="mode-card" data-mode="name" id="mode-name-btn">
+                                <span class="mode-icon">⌖</span>
+                                <span class="mode-name">Name Square</span>
+                                <span class="mode-desc">Identify the highlighted square</span>
                             </button>
                             <button class="mode-card" data-mode="color" id="mode-color-btn">
                                 <span class="mode-icon">◧</span>
@@ -56,11 +86,14 @@
                     </div>
 
                     <div class="option-group">
-                        <label class="option-label">Time</label>
+                        <label class="option-label">Session</label>
                         <div class="option-buttons">
-                            <button class="option-btn" data-time="30" id="time-30-btn">30s</button>
-                            <button class="option-btn active" data-time="60" id="time-60-btn">60s</button>
-                            <button class="option-btn" data-time="120" id="time-120-btn">120s</button>
+                            <button class="option-btn" data-session="30" id="time-30-btn">30s</button>
+                            <button class="option-btn active" data-session="60" id="time-60-btn">60s</button>
+                            <button class="option-btn" data-session="120" id="time-120-btn">120s</button>
+                            <button class="option-btn" data-session="survival" id="time-survival-btn">
+                                <span class="diff-dot" style="background:var(--danger)"></span> Survival
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -85,6 +118,7 @@
                         <svg class="timer-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                         <span id="timer-display">60</span><span class="timer-unit">s</span>
                     </div>
+                    <div class="lives-box" id="lives-box" style="display:none;"></div>
                     <div class="prompt-box" id="prompt-box">
                         <span id="prompt-text">e5</span>
                     </div>
@@ -94,7 +128,17 @@
                     </div>
                 </div>
 
-                <!-- Board area for Square Drill -->
+                <div class="game-meta">
+                    <button class="quit-btn" id="quit-btn" aria-label="Quit drill" title="Quit (Esc)">✕</button>
+                    <div class="streak-display" id="streak-display" style="opacity:0;">
+                        <span class="streak-flame">🔥</span>
+                        <span id="streak-value">0</span>
+                        <span class="streak-label">streak</span>
+                    </div>
+                    <div class="prompt-hint" id="prompt-hint"></div>
+                </div>
+
+                <!-- Board area for Find Square / Name Square -->
                 <div class="board-wrapper" id="board-wrapper">
                     <div class="rank-labels" id="rank-labels"></div>
                     <div class="board" id="board"></div>
@@ -102,9 +146,14 @@
                     <div class="file-labels" id="file-labels"></div>
                 </div>
 
+                <!-- Coordinate picker for Name Square mode -->
+                <div class="name-answer-area" id="name-answer-area" style="display:none;">
+                    <div class="name-pad-row" id="file-pad"></div>
+                    <div class="name-pad-row" id="rank-pad"></div>
+                </div>
+
                 <!-- Buttons for Color Drill -->
                 <div class="color-drill-area" id="color-drill-area" style="display:none;">
-                    <div class="color-board-mini" id="color-board-mini"></div>
                     <div class="color-buttons">
                         <button class="color-btn light-btn" id="color-light-btn">
                             <span class="color-swatch light-swatch"></span>
@@ -150,6 +199,10 @@
                         <span class="stat-value" id="stat-avg-time">0s</span>
                         <span class="stat-label">Avg Time</span>
                     </div>
+                    <div class="stat-card">
+                        <span class="stat-value" id="stat-streak">0</span>
+                        <span class="stat-label">Best Streak</span>
+                    </div>
                 </div>
 
                 <div class="heatmap-section" id="heatmap-section">
@@ -176,6 +229,111 @@
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                     </button>
                     <button class="secondary-btn" id="change-mode-btn">Change Mode</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== SETTINGS MODAL ==================== -->
+        <div class="modal-overlay" id="settings-modal" style="display:none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Settings</h2>
+                    <button class="icon-btn" id="close-settings-btn" aria-label="Close settings">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="setting-row column">
+                        <span class="setting-label">Board theme</span>
+                        <div class="theme-grid" id="theme-grid">
+                            <button class="theme-swatch" data-theme="classic" title="Classic" style="--a:#f0d9b5;--b:#b58863"></button>
+                            <button class="theme-swatch" data-theme="forest" title="Forest" style="--a:#edeed1;--b:#779556"></button>
+                            <button class="theme-swatch" data-theme="ocean" title="Ocean" style="--a:#dee3e6;--b:#5b87a8"></button>
+                            <button class="theme-swatch" data-theme="walnut" title="Walnut" style="--a:#e8c99b;--b:#a06a42"></button>
+                            <button class="theme-swatch" data-theme="slate" title="Slate" style="--a:#cfd8dc;--b:#6b7a82"></button>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-text">
+                            <span class="setting-label">Sound effects</span>
+                            <span class="setting-desc">Synthesized clicks &amp; cues</span>
+                        </div>
+                        <button class="switch" id="toggle-sound" role="switch" aria-checked="true"><span class="switch-knob"></span></button>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-text">
+                            <span class="setting-label">Haptics</span>
+                            <span class="setting-desc">Vibrate on mistakes (mobile)</span>
+                        </div>
+                        <button class="switch" id="toggle-haptics" role="switch" aria-checked="true"><span class="switch-knob"></span></button>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-text">
+                            <span class="setting-label">Animations</span>
+                            <span class="setting-desc">Motion &amp; transitions</span>
+                        </div>
+                        <button class="switch" id="toggle-animations" role="switch" aria-checked="true"><span class="switch-knob"></span></button>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="setting-text">
+                            <span class="setting-label">Countdown</span>
+                            <span class="setting-desc">3-2-1 before each drill</span>
+                        </div>
+                        <button class="switch" id="toggle-countdown" role="switch" aria-checked="true"><span class="switch-knob"></span></button>
+                    </div>
+
+                    <div class="setting-row danger-row">
+                        <div class="setting-text">
+                            <span class="setting-label">Reset progress</span>
+                            <span class="setting-desc">Erase personal bests &amp; stats</span>
+                        </div>
+                        <button class="danger-btn" id="reset-progress-btn">Reset</button>
+                    </div>
+                </div>
+
+                <p class="modal-footer">Chessable · runs fully offline · v2</p>
+            </div>
+        </div>
+
+        <!-- ==================== STATS MODAL ==================== -->
+        <div class="modal-overlay" id="stats-modal" style="display:none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2 class="modal-title">Lifetime Stats</h2>
+                    <button class="icon-btn" id="close-stats-btn" aria-label="Close stats">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="lt-grid">
+                        <div class="lt-card">
+                            <span class="lt-value" id="lt-drills">0</span>
+                            <span class="lt-label">Drills</span>
+                        </div>
+                        <div class="lt-card">
+                            <span class="lt-value" id="lt-correct">0</span>
+                            <span class="lt-label">Correct</span>
+                        </div>
+                        <div class="lt-card">
+                            <span class="lt-value" id="lt-accuracy">0%</span>
+                            <span class="lt-label">Accuracy</span>
+                        </div>
+                        <div class="lt-card">
+                            <span class="lt-value" id="lt-best-streak">0</span>
+                            <span class="lt-label">Best Streak</span>
+                        </div>
+                        <div class="lt-card wide">
+                            <span class="lt-value" id="lt-time">0m</span>
+                            <span class="lt-label">Time Trained</span>
+                        </div>
+                    </div>
+                    <p class="lt-empty" id="lt-empty" style="display:none;">No drills yet — play a round to start tracking your progress.</p>
                 </div>
             </div>
         </div>
