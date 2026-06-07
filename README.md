@@ -1,6 +1,6 @@
-# Chessable — Chess Square Speed Drill
+# RankFile — Chess Square Speed Drill
 
-Chessable is a speed-drill web application designed to help chess players improve their board vision and square recognition. Players race against the clock to click the correct square, name a highlighted square, or identify square colors — building fluency in square memorization.
+RankFile is a speed-drill web application designed to help chess players improve their board vision and square recognition. Players race against the clock to click the correct square, name a highlighted square, or identify square colors — building fluency in square memorization.
 
 Built with **pure vanilla HTML, CSS and JavaScript** — no frameworks, no build step, no dependencies. It installs as a Progressive Web App and runs fully offline.
 
@@ -16,6 +16,9 @@ Built with **pure vanilla HTML, CSS and JavaScript** — no frameworks, no build
 *   **Normal** — coordinates hidden.
 *   **Hard** — coordinates hidden and the board perspective randomly flips between White and Black.
 
+### Perspective (board modes)
+*   **White / Black** — choose which side of the board to drill from; Black flips the board so files run h→a and ranks 1→8. (In Hard the board still flips randomly from your chosen starting side.)
+
 ### Sessions
 *   **Timed** — 30s, 60s, or 120s.
 *   **Survival** *(new)* — no clock; you have 3 lives and play until you run out.
@@ -29,6 +32,8 @@ Built with **pure vanilla HTML, CSS and JavaScript** — no frameworks, no build
 
 ### Settings menu *(new)*
 *   **5 board themes** — Classic, Forest, Ocean, Walnut, Slate.
+*   **Resizable board** — a slider scales the play board (and the Name-mode pad) from 70% to 130%.
+*   **Tactile feedback** — every control presses in on tap, with light haptic ticks (where supported) and a stronger buzz on mistakes.
 *   **Sound effects** — synthesized with the Web Audio API (no asset files).
 *   **Haptics** — vibration feedback on mistakes (supported mobile devices).
 *   **Animations** — master motion/transition toggle (also respects `prefers-reduced-motion`).
@@ -70,7 +75,7 @@ For social sharing, the Open Graph / Twitter meta tags point at `icon.svg`; swap
 ## Project Structure
 
 ```text
-chessable/
+rankfile/
 ├── index.html      # App structure and three screens + modals
 ├── manifest.json   # PWA manifest (installable metadata)
 ├── sw.js           # Service worker (offline app-shell cache)

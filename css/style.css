@@ -48,7 +48,10 @@
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
     /* Sizing */
-    --board-size: min(520px, 85vw);
+    --board-max: 520px;          /* base max edge length */
+    --board-vw: 85vw;            /* viewport cap so it never overflows */
+    --board-scale: 1;            /* user-adjustable (Settings → Board size) */
+    --board-size: min(calc(var(--board-max) * var(--board-scale)), var(--board-vw));
     --label-size: 28px;
 }
 
@@ -272,6 +275,8 @@ h1 {
 .easy-dot { background: var(--success); }
 .normal-dot { background: var(--warning); }
 .hard-dot { background: var(--danger); }
+.persp-white-dot { background: #f0f0f0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25); }
+.persp-black-dot { background: #2b2b2b; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
 
 .option-btn.active .diff-dot {
     box-shadow: 0 0 6px currentColor;
@@ -313,7 +318,7 @@ h1 {
 }
 
 .primary-btn:active {
-    transform: translateY(0);
+    transform: scale(0.97);
 }
 
 .secondary-btn {
@@ -618,7 +623,7 @@ h1 {
 }
 
 .color-btn:active {
-    transform: translateY(0);
+    transform: scale(0.96);
 }
 
 .color-btn.flash-correct {
@@ -884,7 +889,8 @@ h1 {
    ======================================== */
 @media (max-width: 480px) {
     :root {
-        --board-size: min(480px, 88vw);
+        --board-max: 480px;
+        --board-vw: 88vw;
         --label-size: 18px;
     }
 
@@ -906,7 +912,7 @@ h1 {
 
 @media (max-width: 360px) {
     :root {
-        --board-size: min(480px, 92vw);
+        --board-vw: 92vw;
     }
 
     .mode-cards {
@@ -937,6 +943,28 @@ h1 {
 
 .fade-in {
     animation: fade-in 0.4s ease;
+}
+
+/* ========================================
+   TACTILE PRESS FEEDBACK
+   Quick scale-down on press so every control
+   feels physical (pairs with haptic ticks in JS).
+   ======================================== */
+.mode-card:active,
+.option-btn:active,
+.pad-btn:active,
+.icon-btn:active,
+.quit-btn:active,
+.secondary-btn:active,
+.danger-btn:active,
+.switch:active,
+.theme-swatch:active {
+    transform: scale(0.94);
+}
+
+/* Board squares: press darkens rather than scales (avoids grid gaps). */
+.square:active {
+    filter: brightness(0.82);
 }
 
 /* ========================================
@@ -1316,6 +1344,88 @@ body.in-game .top-bar {
 .switch.on .switch-knob {
     transform: translateX(20px);
     background: #0d1117;
+}
+
+/* Range slider (board size) */
+.setting-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.setting-value {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.range-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--bg-primary);
+    box-shadow: inset 0 0 0 1px var(--border-subtle);
+    cursor: pointer;
+    outline: none;
+    margin: 2px 0;
+}
+
+.range-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 2px 10px var(--accent-glow);
+    cursor: pointer;
+    transition: transform 0.12s ease;
+}
+
+.range-input::-webkit-slider-thumb:active {
+    transform: scale(1.25);
+}
+
+.range-input::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 2px 10px var(--accent-glow);
+    cursor: pointer;
+    transition: transform 0.12s ease;
+}
+
+.range-input::-moz-range-thumb:active {
+    transform: scale(1.25);
+}
+
+.range-input:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Live board-size preview (uses theme square colors, scales with --board-scale) */
+.size-preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 158px;
+}
+
+.size-preview-board {
+    width: calc(120px * var(--board-scale));
+    height: calc(120px * var(--board-scale));
+    border-radius: var(--radius-sm);
+    background-image: conic-gradient(
+        var(--sq-dark) 25%, var(--sq-light) 0 50%,
+        var(--sq-dark) 0 75%, var(--sq-light) 0);
+    background-size: 25% 25%;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    transition: width 0.1s ease, height 0.1s ease;
 }
 
 /* Danger row */

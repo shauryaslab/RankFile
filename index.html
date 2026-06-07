@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>Chessable — Square Speed Drill</title>
+    <title>RankFile — Square Speed Drill</title>
     <meta name="description" content="Master chess square recognition with timed speed drills. Train board vision, coordinates and square colors — fast, free, and offline-ready.">
     <meta name="theme-color" content="#0d1117">
     <meta name="color-scheme" content="dark">
 
     <!-- Open Graph / social -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Chessable — Square Speed Drill">
+    <meta property="og:title" content="RankFile — Square Speed Drill">
     <meta property="og:description" content="Train your chess board vision with timed square-recognition drills, heatmaps and personal bests.">
     <meta property="og:image" content="./icon.svg">
     <meta name="twitter:card" content="summary_large_image">
@@ -43,7 +43,7 @@
             <div class="start-container">
                 <div class="logo-section">
                     <div class="logo">♔</div>
-                    <h1>Chessable</h1>
+                    <h1>RankFile</h1>
                     <p class="tagline">Speed drill your square recognition</p>
                 </div>
 
@@ -82,7 +82,19 @@
                                 <span class="diff-dot hard-dot"></span> Hard
                             </button>
                         </div>
-                        <p class="difficulty-hint" id="difficulty-hint">Coordinates shown · White perspective</p>
+                        <p class="difficulty-hint" id="difficulty-hint">Coordinates shown</p>
+                    </div>
+
+                    <div class="option-group" id="perspective-group">
+                        <label class="option-label">Perspective</label>
+                        <div class="option-buttons">
+                            <button class="option-btn active" data-perspective="white" id="persp-white-btn">
+                                <span class="diff-dot persp-white-dot"></span> White
+                            </button>
+                            <button class="option-btn" data-perspective="black" id="persp-black-btn">
+                                <span class="diff-dot persp-black-dot"></span> Black
+                            </button>
+                        </div>
                     </div>
 
                     <div class="option-group">
@@ -255,6 +267,15 @@
                         </div>
                     </div>
 
+                    <div class="setting-row column">
+                        <div class="setting-row-head">
+                            <span class="setting-label">Board size</span>
+                            <span class="setting-value" id="board-size-value">100%</span>
+                        </div>
+                        <div class="size-preview" aria-hidden="true"><div class="size-preview-board"></div></div>
+                        <input type="range" class="range-input" id="board-size-slider" min="70" max="130" step="5" value="100" aria-label="Board size">
+                    </div>
+
                     <div class="setting-row">
                         <div class="setting-text">
                             <span class="setting-label">Sound effects</span>
@@ -296,7 +317,7 @@
                     </div>
                 </div>
 
-                <p class="modal-footer">Chessable · runs fully offline · v2</p>
+                <p class="modal-footer">RankFile · runs fully offline · v3</p>
             </div>
         </div>
 

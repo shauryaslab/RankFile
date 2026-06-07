@@ -1,5 +1,5 @@
-/* Chessable service worker — offline app shell */
-const CACHE = 'chessable-v2';
+/* RankFile service worker — offline app shell */
+const CACHE = 'rankfile-v3';
 const ASSETS = [
     './',
     './index.html',

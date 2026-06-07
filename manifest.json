@@ -1,6 +1,6 @@
 {
-  "name": "Chessable — Square Speed Drill",
-  "short_name": "Chessable",
+  "name": "RankFile — Square Speed Drill",
+  "short_name": "RankFile",
   "description": "Train your chess board vision with timed square-recognition drills, heatmaps and personal bests.",
   "start_url": "./",
   "scope": "./",

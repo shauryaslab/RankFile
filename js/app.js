@@ -1,5 +1,5 @@
 /* ========================================
-   Chessable — Game Engine
+   RankFile — Game Engine
    ======================================== */
 
 // ---- Constants ----
@@ -14,14 +14,14 @@ for (const f of FILES) {
 
 const DIFFICULTY_HINTS = {
     square: {
-        easy: 'Coordinates shown · White perspective',
-        normal: 'No coordinates · White perspective',
-        hard: 'No coordinates · Perspective flips randomly',
+        easy: 'Coordinates shown',
+        normal: 'No coordinates',
+        hard: 'No coordinates · Board flips randomly',
     },
     name: {
-        easy: 'White perspective',
-        normal: 'White perspective',
-        hard: 'Perspective flips randomly',
+        easy: 'Fixed orientation',
+        normal: 'Fixed orientation',
+        hard: 'Board flips randomly',
     },
 };
 
@@ -35,10 +35,11 @@ const FLIP_MIN = 5;
 const FLIP_MAX = 10;
 const SURVIVAL_LIVES = 3;
 
-const SETTINGS_KEY = 'chessable-settings';
-const STATS_KEY = 'chessable-stats';
+const SETTINGS_KEY = 'rankfile-settings';
+const STATS_KEY = 'rankfile-stats';
 const DEFAULT_SETTINGS = {
     boardTheme: 'classic',
+    boardScale: 100,       // percent, 70–130 (Settings → Board size)
     sound: true,
     haptics: true,
     animations: true,
@@ -64,6 +65,8 @@ function saveSettings() {
 function applySettings() {
     document.body.dataset.boardTheme = settings.boardTheme;
     document.body.classList.toggle('no-anim', !settings.animations);
+    // Must set on :root (where --board-size is declared & substituted), not body.
+    document.documentElement.style.setProperty('--board-scale', String(settings.boardScale / 100));
 }
 
 // ---- Lifetime Stats ----
@@ -88,6 +91,7 @@ const state = {
     screen: 'start',
     mode: 'square',
     difficulty: 'easy',
+    orientation: 'white',  // 'white' | 'black' — starting board side (board modes)
     session: 60,           // 30 | 60 | 120 | 'survival'
     timeRemaining: 60,
     lives: SURVIVAL_LIVES,
@@ -122,13 +126,15 @@ function cacheElements() {
         'change-mode-btn', 'timer-box', 'timer-display', 'prompt-text', 'prompt-box',
         'score-display', 'board', 'board-wrapper', 'rank-labels', 'file-labels',
         'color-drill-area', 'color-light-btn', 'color-dark-btn', 'countdown-overlay',
-        'countdown-number', 'difficulty-group', 'difficulty-hint', 'perspective-indicator',
+        'countdown-number', 'difficulty-group', 'difficulty-hint', 'perspective-group',
+        'perspective-indicator',
         'perspective-text', 'pb-display', 'pb-text', 'stat-score', 'stat-accuracy',
         'stat-avg-time', 'stat-streak', 'results-pb-banner', 'heatmap-section', 'heatmap-grid',
         'heatmap-rank-labels', 'heatmap-file-labels', 'lives-box', 'streak-display',
         'streak-value', 'quit-btn', 'prompt-hint', 'name-answer-area', 'file-pad', 'rank-pad',
         'settings-btn', 'stats-btn', 'settings-modal', 'stats-modal', 'close-settings-btn',
-        'close-stats-btn', 'theme-grid', 'toggle-sound', 'toggle-haptics', 'toggle-animations',
+        'close-stats-btn', 'theme-grid', 'board-size-slider', 'board-size-value',
+        'toggle-sound', 'toggle-haptics', 'toggle-animations',
         'toggle-countdown', 'reset-progress-btn', 'lt-drills', 'lt-correct', 'lt-accuracy',
         'lt-best-streak', 'lt-time', 'lt-empty',
     ].forEach((id) => {
@@ -155,6 +161,11 @@ function init() {
     registerServiceWorker();
     // Unlock audio on the first user gesture so start-screen taps are audible.
     document.addEventListener('pointerdown', ensureAudio, { once: true });
+    // Tactility: a tiny haptic tick when any control is pressed (gated by the
+    // Haptics setting). Squares are handled in setupGameListeners; errors buzz harder.
+    document.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('button:not(:disabled), .mode-card')) haptic(6);
+    }, { passive: true });
 }
 
 function setupStartScreenListeners() {
@@ -163,9 +174,10 @@ function setupStartScreenListeners() {
             document.querySelectorAll('.mode-card').forEach((c) => c.classList.remove('active'));
             card.classList.add('active');
             state.mode = card.dataset.mode;
-            // Difficulty only matters for board-based modes
+            // Difficulty + perspective only matter for board-based modes
             const showDiff = state.mode === 'square' || state.mode === 'name';
             els.difficultyGroup.style.display = showDiff ? 'flex' : 'none';
+            els.perspectiveGroup.style.display = showDiff ? 'flex' : 'none';
             if (showDiff) els.difficultyHint.textContent = DIFFICULTY_HINTS[state.mode][state.difficulty];
             updatePersonalBestDisplay();
             sfx('click');
@@ -180,6 +192,15 @@ function setupStartScreenListeners() {
             const hintSet = DIFFICULTY_HINTS[state.mode] || DIFFICULTY_HINTS.square;
             els.difficultyHint.textContent = hintSet[state.difficulty];
             updatePersonalBestDisplay();
+            sfx('click');
+        });
+    });
+
+    document.querySelectorAll('[data-perspective]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('[data-perspective]').forEach((b) => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.orientation = btn.dataset.perspective;
             sfx('click');
         });
     });
@@ -205,6 +226,11 @@ function setupGameListeners() {
         if (!square || !state.gameActive) return;
         answerSquare(square.dataset.square, square);
     });
+
+    // Tactile tick when pressing a live board square (Find Square mode).
+    els.board.addEventListener('pointerdown', (e) => {
+        if (state.mode === 'square' && state.gameActive && e.target.closest('.square')) haptic(6);
+    }, { passive: true });
 
     els.colorLightBtn.addEventListener('click', () => handleColorClick('light'));
     els.colorDarkBtn.addEventListener('click', () => handleColorClick('dark'));
@@ -297,7 +323,7 @@ function showScreen(name) {
 // ---- Personal Best ----
 function getPBKey() {
     const diff = (state.mode === 'square' || state.mode === 'name') ? state.difficulty : 'all';
-    return `chessable-pb-${state.mode}-${diff}-${state.session}`;
+    return `rankfile-pb-${state.mode}-${diff}-${state.session}`;
 }
 
 function getPersonalBest() {
@@ -341,7 +367,7 @@ function startGame() {
     state.promptStartTime = 0;
     state.reactionTimes = [];
     state.squareStats = {};
-    state.isFlipped = false;
+    state.isFlipped = state.orientation === 'black';
     state.promptsSinceFlip = 0;
     state.nextFlipAt = randomInt(FLIP_MIN, FLIP_MAX);
     state.gameActive = false;
@@ -381,8 +407,8 @@ function startGame() {
         renderBoard();
     }
 
-    // Perspective indicator only when the board can flip
-    if (state.difficulty === 'hard' && usesBoard) {
+    // Perspective indicator when the board can flip (hard) or starts from Black
+    if (usesBoard && (state.difficulty === 'hard' || state.orientation === 'black')) {
         els.perspectiveIndicator.style.display = 'block';
         updatePerspectiveText();
     } else {
@@ -834,6 +860,17 @@ function setupSettingsListeners() {
         });
     });
 
+    // Board size slider: live-resize on drag, persist on release.
+    let lastSliderVal = settings.boardScale;
+    els.boardSizeSlider.addEventListener('input', () => {
+        const v = parseInt(els.boardSizeSlider.value);
+        settings.boardScale = v;
+        els.boardSizeValue.textContent = `${v}%`;
+        applySettings();
+        if (v !== lastSliderVal) { haptic(5); lastSliderVal = v; }   // tick per step
+    });
+    els.boardSizeSlider.addEventListener('change', () => { saveSettings(); sfx('click'); });
+
     bindToggle(els.toggleSound, 'sound', () => { if (settings.sound) { ensureAudio(); sfx('correct'); } });
     bindToggle(els.toggleHaptics, 'haptics', () => { if (settings.haptics) haptic(30); });
     bindToggle(els.toggleAnimations, 'animations');
@@ -855,6 +892,8 @@ function bindToggle(btn, key, after) {
 function syncSettingsUI() {
     els.themeGrid.querySelectorAll('.theme-swatch').forEach((sw) =>
         sw.classList.toggle('active', sw.dataset.theme === settings.boardTheme));
+    els.boardSizeSlider.value = settings.boardScale;
+    els.boardSizeValue.textContent = `${settings.boardScale}%`;
     setSwitch(els.toggleSound, settings.sound);
     setSwitch(els.toggleHaptics, settings.haptics);
     setSwitch(els.toggleAnimations, settings.animations);
@@ -880,7 +919,7 @@ function resetProgress() {
     if (!confirm('Reset all personal bests and lifetime stats? This cannot be undone.')) return;
     try {
         Object.keys(localStorage)
-            .filter((k) => k.startsWith('chessable-pb-') || k === STATS_KEY)
+            .filter((k) => k.startsWith('rankfile-pb-') || k === STATS_KEY)
             .forEach((k) => localStorage.removeItem(k));
     } catch { /* silent */ }
     lifetime = { ...DEFAULT_STATS };
